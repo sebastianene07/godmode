@@ -1,7 +1,9 @@
 ## What is this ? ##
 
 A GKI kernel module written to provide root access to unprivilged sandboxed
-Android apps.
+Android apps. Apart from that it describes the process of adding an external kernel
+module to the GKI kernel. Moreover we look at the produced images and what is their
+content.
 
 The module gets a calling app root priviliges by doing the following:
 	1. disable SELinux
@@ -192,8 +194,13 @@ a in LZ4 format that wraps a CPIO archive
 (and so on)
 ```
 
-vendor_dlkm_modules.slider
+`out/slider/dist/vendor_dlkm.img` - lib/modules/6.3.0-mainline-maybe-dirty/*.ko
+^
+|_ This should contain our module if everything went fine
+
+
+
+`out/slider/dist/boot.img` - the kernel Image 
+
 
 # Warning ! Warning ! Warning #
-
-
