@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <errno.h>
 
 #define GOD_MODE_DEV		"/dev/godmode"
 
@@ -20,13 +21,13 @@ int main(int argc, const char **argv)
 
 	dev_fd = open(GOD_MODE_DEV, 0);
 	if (dev_fd < 0) {
-		printf("[!] Cannot open %s\n", GOD_MODE_DEV);
+		printf("[!] Cannot open %s, error: %d\n", GOD_MODE_DEV, errno);
 		return -1;
 	}
 
 	ret = ioctl(dev_fd, GODMODE_DISABLE_SECCOMP, 0);
 	if (ret < 0) {
-		printf("[!] Cannot disable seccomp\n");
+		printf("[!] Cannot disable seccomp errno %d\n", errno);
 		goto teardown;
 	}
 
