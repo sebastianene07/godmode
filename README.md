@@ -1,13 +1,16 @@
 ## What is this ? ##
 
+This will be used to facilitate fuzzing the GKI kernel on a real device as
+syzkaller expects special permissions while running.
+
 A GKI kernel module written to provide root access to unprivilged sandboxed
 Android apps. Apart from that it describes the process of adding an external kernel
 module to the GKI kernel. Moreover we look at the produced images and what is their
 content.
 
 The module gets a calling app root priviliges by doing the following:
-	1. disable SELinux
-	2. set capabilities for the calling process
+	1. disable SELinux and modify the /dev/godmode permissions to be wide accessible
+	2. disable seccomp for the calling process
 	3. set root process id
 
 ## How can I integrate the modules as part of the vendor_dlkm image ##
